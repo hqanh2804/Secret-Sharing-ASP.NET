@@ -6,6 +6,9 @@ using System.Web;
 using System.Web.Mvc;
 using System.Security.Cryptography;
 using System.Text;
+using System.IO;
+using System.Configuration;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Secret_Sharing.Controllers
 {
@@ -56,6 +59,7 @@ namespace Secret_Sharing.Controllers
 			var validUser = (from u in db.Users
 							 where u.Username == user.Username
 							 select u).SingleOrDefault();
+			Session["ID"] = "";
 			if (validUser == null)
 			{
 				ViewBag.Error = "Username or password is invalid!";
@@ -67,6 +71,7 @@ namespace Secret_Sharing.Controllers
 			
 			if (pass.CompareTo(validUser.Password) == 0)
 			{
+				Session["ID"] = user.ID;
 				return View("Index");
 			}
 			else
@@ -74,6 +79,54 @@ namespace Secret_Sharing.Controllers
 				ViewBag.Error = "Username or password is invalid!";
 				return View();
 			}
+		}
+
+		public ActionResult Upload()
+		{
+			return View();
+		}
+
+		[HttpPost]
+		public ActionResult Upload(ManageFile file)
+		{
+
+			if(ModelState.IsValid)
+			{
+				try
+				{
+					if(file != null)
+					{
+						string FileName = Path.GetFileNameWithoutExtension(file.File.FileName);
+						string FileExtension = Path.GetExtension(file.File.FileName);
+
+						file.ID = (int)Session["ID"];
+
+						FileName = DateTime.Now.ToString("yyyyMMdd") + "-" + FileName.Trim() + FileExtension;
+						file.Filename = FileName;
+
+						string UploadPath = Path.Combine(Server.MapPath("~/Files/"), FileName);
+						file.File.SaveAs(UploadPath);
+						
+						file.Url = UploadPath + FileName;
+
+						file.CreatedDate = DateTime.Now;
+
+						UploadModel upload = new UploadModel();
+
+						upload.ManageFiles.Add(file);
+						upload.SaveChanges();
+					}
+
+					ViewBag.FileStatus = "File uploaded successfully!";
+				}
+
+				catch (Exception)
+				{
+					ViewBag.FileStatus = "Error while file uploading!";
+				}
+			}
+
+			return View();
 		}
 
 		public ActionResult About()
