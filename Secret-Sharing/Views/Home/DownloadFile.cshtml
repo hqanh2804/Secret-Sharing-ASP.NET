@@ -1,0 +1,29 @@
+﻿@model Secret_Sharing.Models.ManageFile
+
+@{
+    ViewBag.Title = "Download";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2>Download</h2>
+
+
+@using (Html.BeginForm())
+{
+    @Html.AntiForgeryToken()
+
+    <form method="post" action="@Url.Action("DownloadFile", "Home")">
+        <div>
+            <label for="fileURL">File URL:</label>
+            <input type="text" name="fileURL" id="fileURL" required />
+        </div>
+        <br />
+        <div>
+            <input type="submit" value="Download" class="btn btn-primary" />
+        </div>
+    </form>
+}
+
+@section Scripts {
+    @Scripts.Render("~/bundles/jqueryval")
+}

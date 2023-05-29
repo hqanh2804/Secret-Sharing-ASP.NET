@@ -11,6 +11,7 @@ using System.Configuration;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.SqlClient;
 using System.Runtime.Remoting.Messaging;
+using static System.Net.WebRequestMethods;
 
 namespace Secret_Sharing.Controllers
 {
@@ -137,6 +138,33 @@ namespace Secret_Sharing.Controllers
 			return RedirectToAction("Index");
 		}
 
+		private ManageFile getFileFromDatabase(string fileURL)
+		{
+			string query = "SELECT * FROM ManageFiles WHERE Url = @url";
+
+			using (SqlConnection conn = new SqlConnection(str))
+			{
+				SqlCommand command = new SqlCommand(query, conn);
+				command.Parameters.AddWithValue("@url", fileURL);
+				conn.Open();
+				SqlDataReader reader = command.ExecuteReader();
+
+				if (reader.Read())
+				{
+					ManageFile file = new ManageFile();
+					file.ID = (int)reader["ID"];
+					file.Filename = (string)reader["Filename"];
+					file.Url = (string)reader["Url"];
+					file.CreatedDate = (DateTime)reader["CreatedDate"];
+
+					return file;
+				}
+
+				conn.Close();
+				return null;
+			}
+		}
+
 		[HttpGet]
 		public ActionResult MyFiles()
 		{
@@ -180,23 +208,7 @@ namespace Secret_Sharing.Controllers
 		{
 			ManageFile file = new ManageFile();
 
-			using (SqlConnection conn = new SqlConnection(str))
-			{
-				conn.Open();
-				string query = "select * from ManageFiles where Url = @url";
-				SqlCommand cmd = new SqlCommand(query, conn);
-				cmd.Parameters.AddWithValue("@url", fileURL);
-				SqlDataReader reader = cmd.ExecuteReader();
-
-				if (reader.Read())
-				{
-					file.ID = (int)reader["ID"];
-					file.Filename = (string)reader["Filename"];
-					file.Url = (string)reader["Url"];
-					file.CreatedDate = (DateTime)reader["CreatedDate"];
-				}
-				conn.Close();
-			}
+			file = getFileFromDatabase(fileURL);
 
 			if (file != null)
 			{
@@ -215,6 +227,33 @@ namespace Secret_Sharing.Controllers
 				}
 			}
 			return RedirectToAction("MyFiles");
+		}
+
+		public ActionResult DownloadFile()
+		{
+			return View();
+		}
+
+		[HttpPost]
+		public ActionResult DownloadFile(string fileURL)
+		{
+			ManageFile file = new ManageFile();
+
+			if (!string.IsNullOrEmpty(fileURL))
+			{
+				file = getFileFromDatabase(fileURL);
+
+				if (file != null)
+				{
+					string filePath = Server.MapPath("~/Uploads/" + file.Filename);
+
+					if (System.IO.File.Exists(filePath))
+					{
+						return File(filePath, MimeMapping.GetMimeMapping(file.Filename), file.Filename);
+					}
+				}
+			}
+			return RedirectToAction("Index");
 		}
 
 		public ActionResult About()
