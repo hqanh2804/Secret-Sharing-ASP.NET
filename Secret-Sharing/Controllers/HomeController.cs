@@ -19,6 +19,7 @@ namespace Secret_Sharing.Controllers
 		string str = @"Data Source=QUOCANH;Initial Catalog=SecretSharing;Integrated Security=True";
 
 		LoginModel db = new LoginModel();
+		UploadModel upload = new UploadModel();
 		public ActionResult Index()
 		{
 			return View();
@@ -105,7 +106,7 @@ namespace Secret_Sharing.Controllers
 				string fileName = Path.GetFileNameWithoutExtension(file.FileName);
 				string newFileName = DateTime.Now.ToString("yyyyMMdd") + "-" + fileName.Trim() + fileExtension;
 
-				string UploadPath = Path.Combine(Server.MapPath("~/Uploads"), fileName);
+				string UploadPath = Path.Combine(Server.MapPath("~/Uploads"), newFileName);
 				file.SaveAs(UploadPath);
 
 				f.ID = (int)Session["ID"];
@@ -128,6 +129,7 @@ namespace Secret_Sharing.Controllers
 						cmd.Parameters.AddWithValue("date", f.CreatedDate);
 						cmd.ExecuteNonQuery();
 					}
+					conn.Close();
 				}
 				ViewBag.Error = "File uploaded successfully!";
 			}
@@ -163,8 +165,56 @@ namespace Secret_Sharing.Controllers
 						}
 					}
 				}
+				conn.Close();
 			}
 			return View(files);
+		}
+
+		public ActionResult Delete()
+		{
+			return View();
+		}
+
+		[HttpPost]
+		public ActionResult Delete(string fileURL)
+		{
+			ManageFile file = new ManageFile();
+
+			using (SqlConnection conn = new SqlConnection(str))
+			{
+				conn.Open();
+				string query = "select * from ManageFiles where Url = @url";
+				SqlCommand cmd = new SqlCommand(query, conn);
+				cmd.Parameters.AddWithValue("@url", fileURL);
+				SqlDataReader reader = cmd.ExecuteReader();
+
+				if (reader.Read())
+				{
+					file.ID = (int)reader["ID"];
+					file.Filename = (string)reader["Filename"];
+					file.Url = (string)reader["Url"];
+					file.CreatedDate = (DateTime)reader["CreatedDate"];
+				}
+				conn.Close();
+			}
+
+			if (file != null)
+			{
+				string filePath = Server.MapPath("~/Uploads/" + file.Filename);
+				System.IO.File.Delete(filePath);
+
+				using (SqlConnection conn = new SqlConnection(str))
+				{
+					conn.Open();
+					using (SqlCommand cmd = conn.CreateCommand())
+					{
+						cmd.CommandText = "delete from ManageFiles where Url = @url;";
+						cmd.Parameters.AddWithValue("@url", fileURL);
+						cmd.ExecuteNonQuery();
+					}
+				}
+			}
+			return RedirectToAction("MyFiles");
 		}
 
 		public ActionResult About()
