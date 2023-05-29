@@ -22,6 +22,7 @@
                     <td>@file.Url</td>
                     <td>@file.CreatedDate</td>
                     <td>
+                        @*use method post to post fileURL to Delete() method*@
                         @using (Html.BeginForm("Delete", "Home", new { fileURL = file.Url }, FormMethod.Post))
                         {
                             <button type="submit" class="btn btn-danger">Delete</button>
