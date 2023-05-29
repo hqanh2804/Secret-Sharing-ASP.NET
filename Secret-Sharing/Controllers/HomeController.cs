@@ -12,6 +12,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.SqlClient;
 using System.Runtime.Remoting.Messaging;
 using static System.Net.WebRequestMethods;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Secret_Sharing.Controllers
 {
@@ -253,6 +254,64 @@ namespace Secret_Sharing.Controllers
 					}
 				}
 			}
+			return RedirectToAction("Index");
+		}
+
+		public ActionResult UploadString()
+		{
+			return View();
+		}
+
+		[HttpPost]
+		public ActionResult UploadString (string fileName, string content)
+		{
+			if (string.IsNullOrEmpty(fileName) || string.IsNullOrEmpty(content))
+			{
+				ViewBag.Error = "File name or Content cannot be blank!";
+
+				return RedirectToAction("Index");
+			}
+
+			try
+			{
+				ManageFile f = new ManageFile();
+
+				string uploadFolder = Server.MapPath("~/Uploads");
+				string filePath = Path.Combine(uploadFolder, fileName + ".txt");
+				System.IO.File.WriteAllText(filePath, content);
+
+				string newFileName = DateTime.Now.ToString("yyyyMMdd") + "-" + fileName.Trim() + ".txt";
+
+				f.ID = (int)Session["ID"];
+
+				f.Filename = newFileName;
+
+				f.Url = GenerateProtectedUrl(filePath);
+
+				f.CreatedDate = DateTime.Now;
+
+				using (SqlConnection conn = new SqlConnection(str))
+				{
+					conn.Open();
+					using (SqlCommand cmd = conn.CreateCommand())
+					{
+						cmd.CommandText = "insert into ManageFiles values (@id, @filename, @url, @date)";
+						cmd.Parameters.AddWithValue("@id", f.ID);
+						cmd.Parameters.AddWithValue("@filename", f.Filename);
+						cmd.Parameters.AddWithValue("@url", f.Url);
+						cmd.Parameters.AddWithValue("date", f.CreatedDate);
+						cmd.ExecuteNonQuery();
+					}
+					conn.Close();
+				}
+				ViewBag.Error = "Upload successfully! Your content has been written to .txt!";
+			}
+
+			catch (Exception ex)
+			{
+				ViewBag.Error = "Error: " + ex.Message;
+			}
+
 			return RedirectToAction("Index");
 		}
 
