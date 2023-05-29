@@ -9,6 +9,7 @@ namespace Secret_Sharing.Models
 
 	public partial class ManageFile
     {
+        [Required]
         public int ID { get; set; }
 
         [Required]
@@ -20,7 +21,5 @@ namespace Secret_Sharing.Models
 
         [Required]
         public DateTime CreatedDate { get; set; }
-
-        public HttpPostedFileBase File { get; set; }
     }
 }

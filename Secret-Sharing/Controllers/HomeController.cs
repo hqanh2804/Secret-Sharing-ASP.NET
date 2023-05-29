@@ -9,11 +9,15 @@ using System.Text;
 using System.IO;
 using System.Configuration;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Data.SqlClient;
+using System.Runtime.Remoting.Messaging;
 
 namespace Secret_Sharing.Controllers
 {
 	public class HomeController : Controller
 	{
+		string str = @"Data Source=QUOCANH;Initial Catalog=SecretSharing;Integrated Security=True";
+
 		LoginModel db = new LoginModel();
 		public ActionResult Index()
 		{
@@ -71,7 +75,7 @@ namespace Secret_Sharing.Controllers
 			
 			if (pass.CompareTo(validUser.Password) == 0)
 			{
-				Session["ID"] = user.ID;
+				Session["ID"] = validUser.ID;
 				return View("Index");
 			}
 			else
@@ -81,52 +85,86 @@ namespace Secret_Sharing.Controllers
 			}
 		}
 
-		public ActionResult Upload()
+		private string GenerateProtectedUrl(string filePath)
 		{
-			return View();
+			string fileId = DateTime.Now.Ticks.ToString("x");
+
+			string protectedUrl = Url.Action("Download", "Files", new { id = fileId }, Request.Url.Scheme);
+
+			return protectedUrl;
 		}
 
 		[HttpPost]
-		public ActionResult Upload(ManageFile file)
+		public ActionResult Upload(HttpPostedFileBase file)
 		{
+			ManageFile f = new ManageFile();
 
-			if(ModelState.IsValid)
+			if (file != null && file.ContentLength > 0)
 			{
-				try
+				var fileExtension = Path.GetExtension(file.FileName);
+				string fileName = Path.GetFileNameWithoutExtension(file.FileName);
+				string newFileName = DateTime.Now.ToString("yyyyMMdd") + "-" + fileName.Trim() + fileExtension;
+
+				string UploadPath = Path.Combine(Server.MapPath("~/Uploads"), fileName);
+				file.SaveAs(UploadPath);
+
+				f.ID = (int)Session["ID"];
+				
+				f.Filename = newFileName;
+
+				f.Url = GenerateProtectedUrl(UploadPath);
+
+				f.CreatedDate = DateTime.Now;
+
+				using (SqlConnection conn = new SqlConnection(str))
 				{
-					if(file != null)
+					conn.Open();
+					using (SqlCommand cmd = conn.CreateCommand())
 					{
-						string FileName = Path.GetFileNameWithoutExtension(file.File.FileName);
-						string FileExtension = Path.GetExtension(file.File.FileName);
-
-						file.ID = (int)Session["ID"];
-
-						FileName = DateTime.Now.ToString("yyyyMMdd") + "-" + FileName.Trim() + FileExtension;
-						file.Filename = FileName;
-
-						string UploadPath = Path.Combine(Server.MapPath("~/Files/"), FileName);
-						file.File.SaveAs(UploadPath);
-						
-						file.Url = UploadPath + FileName;
-
-						file.CreatedDate = DateTime.Now;
-
-						UploadModel upload = new UploadModel();
-
-						upload.ManageFiles.Add(file);
-						upload.SaveChanges();
+						cmd.CommandText = "insert into ManageFiles values (@id, @filename, @url, @date)";
+						cmd.Parameters.AddWithValue("@id", f.ID);
+						cmd.Parameters.AddWithValue("@filename", f.Filename);
+						cmd.Parameters.AddWithValue("@url", f.Url);
+						cmd.Parameters.AddWithValue("date", f.CreatedDate);
+						cmd.ExecuteNonQuery();
 					}
-
-					ViewBag.FileStatus = "File uploaded successfully!";
 				}
+				ViewBag.Error = "File uploaded successfully!";
+			}
+			
+			return RedirectToAction("Index");
+		}
 
-				catch (Exception)
+		[HttpGet]
+		public ActionResult MyFiles()
+		{
+			int userID = (int)Session["ID"];
+			List<ManageFile> files = new List<ManageFile>();
+
+			using (SqlConnection conn = new SqlConnection(str))
+			{
+				conn.Open();
+				using (SqlCommand cmd = conn.CreateCommand())
 				{
-					ViewBag.FileStatus = "Error while file uploading!";
+					cmd.CommandText = "SELECT * FROM ManageFiles WHERE ID = @userId";
+					cmd.Parameters.AddWithValue("@userId", userID);
+
+					using (SqlDataReader reader = cmd.ExecuteReader())
+					{
+						while (reader.Read())
+						{
+							ManageFile file = new ManageFile();
+							file.ID = (int)reader["ID"];
+							file.Filename = (string)reader["Filename"];
+							file.Url = (string)reader["Url"];
+							file.CreatedDate = (DateTime)reader["CreatedDate"];
+
+							files.Add(file);
+						}
+					}
 				}
 			}
-
-			return View();
+			return View(files);
 		}
 
 		public ActionResult About()

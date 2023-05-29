@@ -1,0 +1,27 @@
+﻿@model List<Secret_Sharing.Models.ManageFile>
+
+<section class="row" aria-labelledby="aspnetTitle">
+    <h1 id="title">Your uploaded files history</h1>
+</section>
+
+<section class="row" aria-labelledby="aspnetTitle">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>File Name</th>
+                <th>URL</th>
+                <th>Created Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var file in Model)
+            {
+                <tr>
+                    <td>@file.Filename</td>
+                    <td>@file.Url</td>
+                    <td>@file.CreatedDate</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</section>
