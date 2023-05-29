@@ -6,12 +6,20 @@ using System.Web;
 using System.Web.Mvc;
 using System.Security.Cryptography;
 using System.Text;
+using System.IO;
+using System.Configuration;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Data.SqlClient;
+using System.Runtime.Remoting.Messaging;
 
 namespace Secret_Sharing.Controllers
 {
 	public class HomeController : Controller
 	{
+		string str = @"Data Source=QUOCANH;Initial Catalog=SecretSharing;Integrated Security=True";
+
 		LoginModel db = new LoginModel();
+		UploadModel upload = new UploadModel();
 		public ActionResult Index()
 		{
 			return View();
@@ -56,6 +64,7 @@ namespace Secret_Sharing.Controllers
 			var validUser = (from u in db.Users
 							 where u.Username == user.Username
 							 select u).SingleOrDefault();
+			Session["ID"] = "";
 			if (validUser == null)
 			{
 				ViewBag.Error = "Username or password is invalid!";
@@ -67,6 +76,7 @@ namespace Secret_Sharing.Controllers
 			
 			if (pass.CompareTo(validUser.Password) == 0)
 			{
+				Session["ID"] = validUser.ID;
 				return View("Index");
 			}
 			else
@@ -74,6 +84,137 @@ namespace Secret_Sharing.Controllers
 				ViewBag.Error = "Username or password is invalid!";
 				return View();
 			}
+		}
+
+		private string GenerateProtectedUrl(string filePath)
+		{
+			string fileId = DateTime.Now.Ticks.ToString("x");
+
+			string protectedUrl = Url.Action("Download", "Files", new { id = fileId }, Request.Url.Scheme);
+
+			return protectedUrl;
+		}
+
+		[HttpPost]
+		public ActionResult Upload(HttpPostedFileBase file)
+		{
+			ManageFile f = new ManageFile();
+
+			if (file != null && file.ContentLength > 0)
+			{
+				var fileExtension = Path.GetExtension(file.FileName);
+				string fileName = Path.GetFileNameWithoutExtension(file.FileName);
+				string newFileName = DateTime.Now.ToString("yyyyMMdd") + "-" + fileName.Trim() + fileExtension;
+
+				string UploadPath = Path.Combine(Server.MapPath("~/Uploads"), newFileName);
+				file.SaveAs(UploadPath);
+
+				f.ID = (int)Session["ID"];
+				
+				f.Filename = newFileName;
+
+				f.Url = GenerateProtectedUrl(UploadPath);
+
+				f.CreatedDate = DateTime.Now;
+
+				using (SqlConnection conn = new SqlConnection(str))
+				{
+					conn.Open();
+					using (SqlCommand cmd = conn.CreateCommand())
+					{
+						cmd.CommandText = "insert into ManageFiles values (@id, @filename, @url, @date)";
+						cmd.Parameters.AddWithValue("@id", f.ID);
+						cmd.Parameters.AddWithValue("@filename", f.Filename);
+						cmd.Parameters.AddWithValue("@url", f.Url);
+						cmd.Parameters.AddWithValue("date", f.CreatedDate);
+						cmd.ExecuteNonQuery();
+					}
+					conn.Close();
+				}
+				ViewBag.Error = "File uploaded successfully!";
+			}
+			
+			return RedirectToAction("Index");
+		}
+
+		[HttpGet]
+		public ActionResult MyFiles()
+		{
+			int userID = (int)Session["ID"];
+			List<ManageFile> files = new List<ManageFile>();
+
+			using (SqlConnection conn = new SqlConnection(str))
+			{
+				conn.Open();
+				using (SqlCommand cmd = conn.CreateCommand())
+				{
+					cmd.CommandText = "SELECT * FROM ManageFiles WHERE ID = @userId";
+					cmd.Parameters.AddWithValue("@userId", userID);
+
+					using (SqlDataReader reader = cmd.ExecuteReader())
+					{
+						while (reader.Read())
+						{
+							ManageFile file = new ManageFile();
+							file.ID = (int)reader["ID"];
+							file.Filename = (string)reader["Filename"];
+							file.Url = (string)reader["Url"];
+							file.CreatedDate = (DateTime)reader["CreatedDate"];
+
+							files.Add(file);
+						}
+					}
+				}
+				conn.Close();
+			}
+			return View(files);
+		}
+
+		public ActionResult Delete()
+		{
+			return View();
+		}
+
+		[HttpPost]
+		public ActionResult Delete(string fileURL)
+		{
+			ManageFile file = new ManageFile();
+
+			using (SqlConnection conn = new SqlConnection(str))
+			{
+				conn.Open();
+				string query = "select * from ManageFiles where Url = @url";
+				SqlCommand cmd = new SqlCommand(query, conn);
+				cmd.Parameters.AddWithValue("@url", fileURL);
+				SqlDataReader reader = cmd.ExecuteReader();
+
+				if (reader.Read())
+				{
+					file.ID = (int)reader["ID"];
+					file.Filename = (string)reader["Filename"];
+					file.Url = (string)reader["Url"];
+					file.CreatedDate = (DateTime)reader["CreatedDate"];
+				}
+				conn.Close();
+			}
+
+			if (file != null)
+			{
+				string filePath = Server.MapPath("~/Uploads/" + file.Filename);
+				System.IO.File.Delete(filePath);
+
+				using (SqlConnection conn = new SqlConnection(str))
+				{
+					conn.Open();
+					using (SqlCommand cmd = conn.CreateCommand())
+					{
+						cmd.CommandText = "delete from ManageFiles where Url = @url;";
+						cmd.Parameters.AddWithValue("@url", fileURL);
+						cmd.ExecuteNonQuery();
+					}
+				}
+			}
+			return RedirectToAction("MyFiles");
 		}
 
 		public ActionResult About()

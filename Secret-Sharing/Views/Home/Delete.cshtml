@@ -1,0 +1,11 @@
+﻿@model Secret_Sharing.Models.ManageFile
+
+<h2>Delete Confirmation</h2>
+
+<p>Do you sure want to delete?</p>
+
+@using (Html.BeginForm("Delete", "Home", new { fileURL = Model.Url }, FormMethod.Post))
+{
+    <input type="submit" value="Delete" class="btn btn-danger" />
+    <a href="@Url.Action("MyFiles", "Home")" class="btn btn-primary">Back to Uploaded History</a>
+}
