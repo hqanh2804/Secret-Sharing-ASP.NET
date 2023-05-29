@@ -7,17 +7,12 @@ using System.Web.Mvc;
 using System.Security.Cryptography;
 using System.Text;
 using System.IO;
-using System.Configuration;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.SqlClient;
-using System.Runtime.Remoting.Messaging;
-using static System.Net.WebRequestMethods;
-using static System.Net.Mime.MediaTypeNames;
-
 namespace Secret_Sharing.Controllers
 {
 	public class HomeController : Controller
 	{
+		// connection string to local database
 		string str = @"Data Source=QUOCANH;Initial Catalog=SecretSharing;Integrated Security=True";
 
 		LoginModel db = new LoginModel();
@@ -37,6 +32,7 @@ namespace Secret_Sharing.Controllers
 		[HttpPost]
 		public ActionResult Register(Users user)
 		{
+			// Check if username registered or not
 			var isRegisteredUser = (from u in db.Users
 									where u.Username == user.Username
 									select u).SingleOrDefault();
@@ -46,8 +42,11 @@ namespace Secret_Sharing.Controllers
 				return View();
 			}
 
+			// Hash user's password by SHA1 algorithm
 			HashAlgorithm algorithm = SHA1.Create();
 			user.Password = Encoding.UTF8.GetString(algorithm.ComputeHash(Encoding.UTF8.GetBytes(user.Password)));
+
+			// Add user information to database
 			db.Users.Add(user);
 			db.SaveChanges();
 			return RedirectToAction("Login");
@@ -63,6 +62,7 @@ namespace Secret_Sharing.Controllers
 		[HttpPost]
 		public ActionResult Login(Users user)
 		{
+			// Check if username registered or not
 			var validUser = (from u in db.Users
 							 where u.Username == user.Username
 							 select u).SingleOrDefault();
@@ -73,11 +73,14 @@ namespace Secret_Sharing.Controllers
 				return View();
 			}
 
+			// Hash input password
 			HashAlgorithm algorithm = SHA1.Create();
 			string pass = Encoding.UTF8.GetString(algorithm.ComputeHash(Encoding.UTF8.GetBytes(user.Password)));
 			
+			// Compare user's input password with their registered password before
 			if (pass.CompareTo(validUser.Password) == 0)
 			{
+				// Create a session with User ID
 				Session["ID"] = validUser.ID;
 				return View("Index");
 			}
@@ -90,8 +93,10 @@ namespace Secret_Sharing.Controllers
 
 		private string GenerateProtectedUrl(string filePath)
 		{
+			// Get exactly ticks when uploading the file
 			string fileId = DateTime.Now.Ticks.ToString("x");
 
+			// Create a new URL of the file
 			string protectedUrl = Url.Action("Download", "Files", new { id = fileId }, Request.Url.Scheme);
 
 			return protectedUrl;
@@ -104,10 +109,12 @@ namespace Secret_Sharing.Controllers
 
 			if (file != null && file.ContentLength > 0)
 			{
+				// Get file name and file extension to create a new name for it
 				var fileExtension = Path.GetExtension(file.FileName);
 				string fileName = Path.GetFileNameWithoutExtension(file.FileName);
 				string newFileName = DateTime.Now.ToString("yyyyMMdd") + "-" + fileName.Trim() + fileExtension;
 
+				// Upload the file to the server (save to folder ~/Uploads/)
 				string UploadPath = Path.Combine(Server.MapPath("~/Uploads"), newFileName);
 				file.SaveAs(UploadPath);
 
@@ -119,6 +126,7 @@ namespace Secret_Sharing.Controllers
 
 				f.CreatedDate = DateTime.Now;
 
+				// Save file's information to database.
 				using (SqlConnection conn = new SqlConnection(str))
 				{
 					conn.Open();
@@ -139,6 +147,7 @@ namespace Secret_Sharing.Controllers
 			return RedirectToAction("Index");
 		}
 
+		// This function is to get file's information from database by user's input fileURL
 		private ManageFile getFileFromDatabase(string fileURL)
 		{
 			string query = "SELECT * FROM ManageFiles WHERE Url = @url";
@@ -150,6 +159,7 @@ namespace Secret_Sharing.Controllers
 				conn.Open();
 				SqlDataReader reader = command.ExecuteReader();
 
+				// Check if file exists in database and save its information to a ManageFile model
 				if (reader.Read())
 				{
 					ManageFile file = new ManageFile();
@@ -169,9 +179,11 @@ namespace Secret_Sharing.Controllers
 		[HttpGet]
 		public ActionResult MyFiles()
 		{
+			// Get current session's user id
 			int userID = (int)Session["ID"];
 			List<ManageFile> files = new List<ManageFile>();
 
+			// Select all files which current user uploaded
 			using (SqlConnection conn = new SqlConnection(str))
 			{
 				conn.Open();
@@ -213,9 +225,11 @@ namespace Secret_Sharing.Controllers
 
 			if (file != null)
 			{
+				// Find file in folder ~/Uploads/ and delete it
 				string filePath = Server.MapPath("~/Uploads/" + file.Filename);
 				System.IO.File.Delete(filePath);
 
+				// Also delete file on database
 				using (SqlConnection conn = new SqlConnection(str))
 				{
 					conn.Open();
@@ -246,8 +260,10 @@ namespace Secret_Sharing.Controllers
 
 				if (file != null)
 				{
+					// Find the file in folder ~/Uploads/
 					string filePath = Server.MapPath("~/Uploads/" + file.Filename);
 
+					// Check if it exists then download
 					if (System.IO.File.Exists(filePath))
 					{
 						return File(filePath, MimeMapping.GetMimeMapping(file.Filename), file.Filename);
@@ -272,12 +288,15 @@ namespace Secret_Sharing.Controllers
 				return RedirectToAction("Index");
 			}
 
+			// This method is similar to Upload() method
 			try
 			{
 				ManageFile f = new ManageFile();
 
 				string uploadFolder = Server.MapPath("~/Uploads");
 				string filePath = Path.Combine(uploadFolder, fileName + ".txt");
+
+				// This line is to write content to a .txt file
 				System.IO.File.WriteAllText(filePath, content);
 
 				string newFileName = DateTime.Now.ToString("yyyyMMdd") + "-" + fileName.Trim() + ".txt";
@@ -290,6 +309,7 @@ namespace Secret_Sharing.Controllers
 
 				f.CreatedDate = DateTime.Now;
 
+				// Save file information to database
 				using (SqlConnection conn = new SqlConnection(str))
 				{
 					conn.Open();
